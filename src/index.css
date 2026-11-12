@@ -1,0 +1,69 @@
+@import 'tailwindcss';
+
+/* Design tokens from the Figma frames (no Figma variables exist). Never hard-code hex in components. */
+@theme {
+  --color-ink: #1e2a0b;
+  --color-line: #cbd0c3;
+  --color-primary: #4898b3;
+  --color-accent: #aa3e98;
+  --color-accent-soft: #f2a4e5;
+  --color-paper: #ffffff;
+
+  --font-display: 'Special Gothic Expanded One', system-ui, sans-serif;
+  --font-body: 'Google Sans Flex', system-ui, sans-serif;
+
+  /* Text styles from the brief */
+  --text-splash: 40px;
+  --text-splash--letter-spacing: 0.5px;
+  --text-title: 24px;
+  --text-title--letter-spacing: 0.5px;
+  --text-small: 12px;
+  --text-tiny: 10px;
+  --text-button: 14px;
+  --text-live: 64px;
+
+  /* Layout: rule at 40px, content from 60px to 20px before the right edge */
+  --spacing-rule: 40px;
+  --spacing-gutter-l: 60px;
+  --spacing-gutter-r: 20px;
+  --container-app: 430px;
+}
+
+@layer base {
+  html,
+  body {
+    background: var(--color-paper);
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-body);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Active (keyboard focus) states use primary. */
+  :focus-visible {
+    outline-color: var(--color-primary);
+  }
+
+  /* Corners are square everywhere. */
+  input,
+  select,
+  button,
+  textarea {
+    border-radius: 0;
+  }
+
+  /* Number fields look like plain text inputs, as in Figma. */
+  input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}
