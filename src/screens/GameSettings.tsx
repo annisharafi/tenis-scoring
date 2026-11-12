@@ -6,8 +6,9 @@ import { Field, Select, TextInput } from '../components/Field'
 import { PageHeader } from '../components/PageHeader'
 import { createSession, type GameSystem, type NewSession } from '../data/sessions'
 
-const MIN_PLAYERS = 4
-const MAX_PLAYERS = 24
+// Players join through the link, so there is no head count here. Six courts seat 24 players,
+// the most a session takes; courts that don't fill up are simply left out of the rounds.
+const MAX_COURTS = 6
 
 const timeOptions = [60, 90, 120, 150, 180].map((minutes) => ({
   value: String(minutes),
@@ -28,14 +29,10 @@ const gameSystemOptions: { value: GameSystem; label: string }[] = [
 export function GameSettings({ initial }: { initial?: NewSession }) {
   const navigate = useNavigate()
   const [name, setName] = useState(initial?.name ?? '')
-  const [players, setPlayers] = useState(initial ? String(initial.playerLimit) : '')
   const [courts, setCourts] = useState(String(initial?.courts ?? 1))
   const [minutes, setMinutes] = useState(String(initial?.minutes ?? 120))
   const [gameSystem, setGameSystem] = useState<GameSystem>(initial?.gameSystem ?? 'sudden')
   const [saving, setSaving] = useState(false)
-
-  // A court needs 4 players, so more courts than that would never be used.
-  const maxCourts = Math.max(1, Math.floor((Number(players) || MIN_PLAYERS) / 4))
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -43,7 +40,6 @@ export function GameSettings({ initial }: { initial?: NewSession }) {
     try {
       const session = await createSession({
         name: name.trim(),
-        playerLimit: Number(players),
         courts: Number(courts),
         minutes: Number(minutes),
         gameSystem,
@@ -73,22 +69,6 @@ export function GameSettings({ initial }: { initial?: NewSession }) {
             />
           )}
         </Field>
-        <Field label="Number of Players">
-          {(id) => (
-            <TextInput
-              id={id}
-              type="number"
-              inputMode="numeric"
-              required
-              min={MIN_PLAYERS}
-              max={MAX_PLAYERS}
-              step={1}
-              placeholder={`${MIN_PLAYERS} to ${MAX_PLAYERS}`}
-              value={players}
-              onChange={(e) => setPlayers(e.target.value)}
-            />
-          )}
-        </Field>
         <Field label="Courts">
           {(id) => (
             <TextInput
@@ -97,7 +77,7 @@ export function GameSettings({ initial }: { initial?: NewSession }) {
               inputMode="numeric"
               required
               min={1}
-              max={maxCourts}
+              max={MAX_COURTS}
               step={1}
               value={courts}
               onChange={(e) => setCourts(e.target.value)}

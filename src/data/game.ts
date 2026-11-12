@@ -51,14 +51,14 @@ let nextId = 1
 const newId = (prefix: string) => `${prefix}${nextId++}`
 
 /**
- * Fills a roster of fake players, leaving one place for this browser's user to join.
+ * Fills a roster of fake players, enough for every court, so this browser's user can join as one more.
  * Sessions created here belong to this browser's user and wait in the lobby for them to start.
  * Sample sessions belong to a fake host (the first player) and are already playing, so their link
  * shows the guest's join card and then the game.
  */
 function seed(session: Session, sample: boolean): Game {
   const players: StoredPlayer[] = NAMES.split(' ')
-    .slice(0, session.playerLimit - 1)
+    .slice(0, session.courts * 4)
     .map((name, i) => ({
       id: newId('p'),
       userId: sample && i === 0 ? session.hostUserId : null,
@@ -147,17 +147,30 @@ function rate(game: Game) {
   )
 }
 
-async function load(code: string): Promise<{ session: Session; game: Game }> {
+const loads = new Map<string, Promise<{ session: Session; game: Game }>>()
+
+/** Loads a session and its game once; screens loading at the same time share that one load. */
+function load(code: string): Promise<{ session: Session; game: Game }> {
+  let loading = loads.get(code)
+  if (!loading) {
+    loading = firstLoad(code)
+    loads.set(code, loading)
+  }
+  return loading
+}
+
+async function firstLoad(code: string): Promise<{ session: Session; game: Game }> {
   // Links opened without creating a session here (or after a reload) get a sample one.
   let session = await getSession(code)
   const sample = !session
   session ??= createSessionRecord(
     code,
-    { name: 'Fun Fun Tennis', playerLimit: 5, courts: 1, minutes: 120, gameSystem: 'sudden' },
+    { name: 'Fun Fun Tennis', courts: 1, minutes: 120, gameSystem: 'sudden' },
     'sample-host',
   )
-  if (!games.has(code)) games.set(code, seed(session, sample))
-  return { session, game: games.get(code)! }
+  const game = seed(session, sample)
+  games.set(code, game)
+  return { session, game }
 }
 
 function view(session: Session, game: Game): GameView {

@@ -88,12 +88,7 @@ function RoundBlock({
     <section ref={ref} aria-label={`Round ${round.number}`} className="relative flex scroll-mt-5 flex-col gap-1">
       {/* The accent bar sits on the left rule beside the active round. */}
       {active && <div aria-hidden className="absolute inset-y-0 -left-5 w-0.5 bg-accent" />}
-      <div className="flex items-center justify-between">
-        <h2 className="text-small font-light opacity-50">Round {round.number}</h2>
-        {round.state === 'planned' && (
-          <span className="border-[0.5px] border-accent-soft px-1.5 text-tiny text-accent">planned</span>
-        )}
-      </div>
+      <h2 className="text-small font-light opacity-50">Round {round.number}</h2>
       {round.matches.map((match) => (
         <CourtRow
           key={match.id}
@@ -181,14 +176,14 @@ function CourtRow({
         {canCountLive ? (
           <Link
             to={`/s/${code}/match/${match.id}/live`}
-            className="flex h-10 shrink-0 items-center bg-accent px-2.5 text-small text-white lowercase"
+            className="flex h-10 shrink-0 items-center border-[0.5px] border-accent px-2.5 text-small text-accent lowercase"
           >
             Live Count
           </Link>
         ) : (
           <span
             aria-disabled
-            className={`flex h-10 shrink-0 items-center px-2.5 text-small text-white lowercase ${active ? 'bg-accent/50' : 'bg-accent-soft'}`}
+            className={`flex h-10 shrink-0 items-center border-[0.5px] px-2.5 text-small lowercase ${active ? 'border-accent/50 text-accent/50' : 'border-accent-soft text-accent-soft'}`}
           >
             Live Count
           </span>

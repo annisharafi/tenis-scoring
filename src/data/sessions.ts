@@ -10,7 +10,6 @@ export type Session = {
   id: string
   code: string
   name: string
-  playerLimit: number
   courts: number
   minutes: number
   gameSystem: GameSystem
@@ -19,7 +18,7 @@ export type Session = {
   createdAt: string
 }
 
-export type NewSession = Pick<Session, 'name' | 'playerLimit' | 'courts' | 'minutes' | 'gameSystem'>
+export type NewSession = Pick<Session, 'name' | 'courts' | 'minutes' | 'gameSystem'>
 
 const sessions = new Map<string, Session>()
 
