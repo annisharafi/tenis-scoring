@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { Button } from '../components/Button'
 import { Modal } from '../components/Modal'
-import { getSession, type Session } from '../data/sessions'
+import { useGame } from '../data/useGame'
 import { GameSettings } from './GameSettings'
 
 const COPIED_MS = 2000
@@ -10,17 +10,10 @@ const COPIED_MS = 2000
 /** 3.0 Share game: the join link over the created session's settings. */
 export function ShareGame() {
   const { code = '' } = useParams()
-  const [session, setSession] = useState<Session | null>()
+  const { data, isPending } = useGame(code)
+  const session = data?.session
 
-  useEffect(() => {
-    let current = true
-    getSession(code).then((s) => current && setSession(s ?? null))
-    return () => {
-      current = false
-    }
-  }, [code])
-
-  if (session === undefined) return null
+  if (isPending) return null
   return (
     <>
       <GameSettings key={session?.id} initial={session ?? undefined} />

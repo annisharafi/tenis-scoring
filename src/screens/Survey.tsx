@@ -4,7 +4,8 @@ import { AppShell } from '../components/AppShell'
 import { Button } from '../components/Button'
 import { PageHeader } from '../components/PageHeader'
 import { RadioGroup, type RadioOption } from '../components/RadioGroup'
-import { getGame, saveSurvey } from '../data/game'
+import { GameError, saveSurvey } from '../data/game'
+import { useGame, useRefetchGame } from '../data/useGame'
 import type { Survey as SurveyAnswers } from '../logic/survey'
 
 // Copy and order from the brief (serve and return run weakest to strongest); points live in config.
@@ -35,25 +36,28 @@ export function Survey() {
   const [serve, setServe] = useState<SurveyAnswers['serve']>()
   const [ret, setRet] = useState<SurveyAnswers['ret']>()
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string>()
   const complete = lastPlayed && serve && ret
+  const { data: game } = useGame(code)
+  const refetch = useRefetchGame(code)
 
   // Answers belong to a player, so anyone who hasn't joined goes to the join card first.
   useEffect(() => {
-    let current = true
-    getGame(code).then((g) => current && !g.me.id && navigate(`/s/${code}`, { replace: true }))
-    return () => {
-      current = false
-    }
-  }, [code, navigate])
+    if (game && !game.me.id) navigate(`/s/${code}`, { replace: true })
+  }, [game, code, navigate])
 
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (!lastPlayed || !serve || !ret) return
     setSaving(true)
+    setError(undefined)
     try {
       await saveSurvey(code, { lastPlayed, serve, ret })
+      await refetch()
       // The join link routes on: the lobby before the game starts, otherwise the game.
       navigate(`/s/${code}`, { replace: true })
+    } catch (e) {
+      setError(e instanceof GameError ? e.message : 'Something went wrong. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -69,6 +73,11 @@ export function Survey() {
         <RadioGroup label="When did you last play?" options={lastPlayedOptions} value={lastPlayed} onChange={setLastPlayed} />
         <RadioGroup label="How is your serve?" options={serveOptions} value={serve} onChange={setServe} />
         <RadioGroup label="How is your return?" options={returnOptions} value={ret} onChange={setRet} />
+        {error && (
+          <p role="alert" className="text-small font-light text-accent">
+            {error}
+          </p>
+        )}
         <Button type="submit" disabled={!complete || saving}>
           Submit
         </Button>

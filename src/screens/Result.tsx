@@ -1,34 +1,23 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useRef, type ChangeEvent } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { AppShell } from '../components/AppShell'
 import { Button } from '../components/Button'
 import { PageHeader } from '../components/PageHeader'
-import { finishSession, getGame, type GameView } from '../data/game'
+import { finishSession } from '../data/game'
+import { useGame } from '../data/useGame'
+import { scoredMatches } from '../logic/session'
 import { standings } from '../logic/standings'
 
 /** 7.0 Result: everyone's record, then sharing a photo card of the day. */
 export function Result() {
   const { code = '' } = useParams()
   const navigate = useNavigate()
-  const [game, setGame] = useState<GameView>()
+  const { data: game } = useGame(code)
   const photoInput = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    let current = true
-    getGame(code).then((g) => current && setGame(g))
-    return () => {
-      current = false
-    }
-  }, [code])
 
   if (!game) return null
 
-  const played = game.rounds.flatMap((r) =>
-    r.matches.flatMap((m) =>
-      m.status === 'done' ? [{ id: m.id, teamA: m.teamA, teamB: m.teamB, gamesA: m.gamesA!, gamesB: m.gamesB! }] : [],
-    ),
-  )
-  const rows = standings(game.players, played)
+  const rows = standings(game.players, scoredMatches(game.rounds))
 
   // The photo picker offers the library or the camera; the chosen file travels to the share card.
   function pickPhoto(event: ChangeEvent<HTMLInputElement>) {

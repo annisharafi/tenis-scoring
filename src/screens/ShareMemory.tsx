@@ -4,7 +4,8 @@ import { useLocation, useParams } from 'react-router'
 import { AppShell } from '../components/AppShell'
 import { Button } from '../components/Button'
 import { PageHeader } from '../components/PageHeader'
-import { getGame, type GameView } from '../data/game'
+import { useGame } from '../data/useGame'
+import { scoredMatches } from '../logic/session'
 import { standings } from '../logic/standings'
 import { CARD_FONTS, drawCard, loadImage, TEMPLATES, type CardData } from '../share/drawCard'
 
@@ -18,7 +19,7 @@ const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (/Macintosh/
 export function ShareMemory() {
   const { code = '' } = useParams()
   const location = useLocation()
-  const [game, setGame] = useState<GameView>()
+  const { data: game } = useGame(code)
   const [photo, setPhoto] = useState<File | undefined>((location.state as { photo?: File } | null)?.photo)
   const [images, setImages] = useState<(HTMLImageElement | null)[]>()
   const [active, setActive] = useState(0)
@@ -26,14 +27,6 @@ export function ShareMemory() {
   const canvases = useRef<(HTMLCanvasElement | null)[]>([])
   const track = useRef<HTMLDivElement>(null)
   const photoInput = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    let current = true
-    getGame(code).then((g) => current && setGame(g))
-    return () => {
-      current = false
-    }
-  }, [code])
 
   // The chosen photo backs every card; without one, each card shows its own default photo.
   useEffect(() => {
@@ -49,7 +42,7 @@ export function ShareMemory() {
     }
   }, [photo])
 
-  const rows = useMemo(() => (game ? standings(game.players, playedMatches(game)) : []), [game])
+  const rows = useMemo(() => (game ? standings(game.players, scoredMatches(game.rounds)) : []), [game])
   const rank = rows.findIndex((r) => r.id === game?.me.id) + 1
   const me = rows[rank - 1]
 
@@ -156,13 +149,5 @@ export function ShareMemory() {
         </div>
       )}
     </AppShell>
-  )
-}
-
-function playedMatches(game: GameView) {
-  return game.rounds.flatMap((r) =>
-    r.matches.flatMap((m) =>
-      m.status === 'done' ? [{ id: m.id, teamA: m.teamA, teamB: m.teamB, gamesA: m.gamesA!, gamesB: m.gamesB! }] : [],
-    ),
   )
 }

@@ -1,4 +1,4 @@
-import type { ScoredMatch } from './rating'
+import type { ScoredMatch } from './rating.ts'
 
 export type Standing = { id: string; name: string; won: number; lost: number; tied: number; games: number }
 

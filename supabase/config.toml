@@ -1,0 +1,7 @@
+# Supabase CLI settings for this project (see supabase/functions and supabase/migrations).
+project_id = "tennis-scoring-apps"
+
+[functions.game]
+# The function checks the caller's session itself (admin.auth.getUser), so the gateway's
+# legacy JWT check is off; that keeps it working with the new publishable/secret API keys.
+verify_jwt = false

@@ -1,4 +1,4 @@
-import { config } from '../config'
+import { config } from '../config.ts'
 
 export type Pair = readonly [string, string]
 export type Match = { court: number; teamA: Pair; teamB: Pair }

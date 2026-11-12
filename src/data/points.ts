@@ -1,40 +1,34 @@
-// In-memory stand-in for the Supabase `points` table and its realtime channel until the backend step.
-// One row per live tap; undo deletes the last row. Listeners get the full tap list after each change.
+// Live points: one row per tap, written straight from the phone (row-level security checks it's
+// the host or a player on that court) and shared to every phone through realtime.
 import type { Side } from '../logic/tennis'
-import { markLive } from './game'
-
-type PointRow = { matchId: string; team: Side; seq: number; createdAt: string }
-
-const rows = new Map<string, PointRow[]>()
-const listeners = new Map<string, Set<(taps: Side[]) => void>>()
-
-const tapsOf = (matchId: string) => (rows.get(matchId) ?? []).map((r) => r.team)
-
-function publish(matchId: string) {
-  for (const listener of listeners.get(matchId) ?? []) listener(tapsOf(matchId))
-}
+import { must, supabase } from './supabase'
 
 export async function getTaps(matchId: string): Promise<Side[]> {
-  return tapsOf(matchId)
+  const rows = must(await supabase.from('points').select('team').eq('match_id', matchId).order('id'))
+  return (rows as { team: Side }[]).map((r) => r.team)
 }
 
-export async function addPoint(matchId: string, team: Side): Promise<void> {
-  const list = rows.get(matchId) ?? []
-  list.push({ matchId, team, seq: list.length + 1, createdAt: new Date().toISOString() })
-  rows.set(matchId, list)
-  markLive(matchId)
-  publish(matchId)
+export async function addPoint(sessionId: string, matchId: string, team: Side): Promise<void> {
+  must(await supabase.from('points').insert({ session_id: sessionId, match_id: matchId, team }))
 }
 
 export async function undoPoint(matchId: string): Promise<void> {
-  rows.get(matchId)?.pop()
-  publish(matchId)
+  const last = must(
+    await supabase.from('points').select('id').eq('match_id', matchId).order('id', { ascending: false }).limit(1).maybeSingle(),
+  ) as { id: number } | null
+  if (last) must(await supabase.from('points').delete().eq('id', last.id))
 }
 
-/** Calls `listener` with every change to the match's taps; returns the unsubscribe. */
+/** Calls `listener` with the match's taps after every change from any phone; returns the unsubscribe. */
 export function subscribeTaps(matchId: string, listener: (taps: Side[]) => void): () => void {
-  const set = listeners.get(matchId) ?? new Set()
-  set.add(listener)
-  listeners.set(matchId, set)
-  return () => set.delete(listener)
+  const refresh = () => getTaps(matchId).then(listener)
+  const channel = supabase
+    .channel(`points:${matchId}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'points', filter: `match_id=eq.${matchId}` }, refresh)
+    // Deletes can't be filtered by match, so any undo refreshes.
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'points' }, refresh)
+    .subscribe()
+  return () => {
+    supabase.removeChannel(channel)
+  }
 }

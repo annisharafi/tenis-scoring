@@ -3,7 +3,8 @@ import { useNavigate, useParams } from 'react-router'
 import { Button } from '../components/Button'
 import { TextInput } from '../components/Field'
 import { Modal } from '../components/Modal'
-import { getGame, joinSession, JoinError, type GameView } from '../data/game'
+import { GameError, joinSession } from '../data/game'
+import { useGame, useRefetchGame } from '../data/useGame'
 import { Splash } from './Splash'
 
 const FINISHED = 'This session has finished. Ask the host for a new link.'
@@ -17,24 +18,29 @@ const FINISHED = 'This session has finished. Ask the host for a new link.'
 export function Join() {
   const { code = '' } = useParams()
   const navigate = useNavigate()
-  const [game, setGame] = useState<GameView>()
+  const { data: game, error } = useGame(code)
 
   useEffect(() => {
-    let current = true
-    getGame(code).then((g) => {
-      if (!current) return
-      if (!g.me.id) return setGame(g)
-      const next = !g.me.surveyDone
-        ? 'about-you'
-        : { open: 'players', playing: 'game', finished: 'result' }[g.session.status]
-      navigate(`/s/${code}/${next}`, { replace: true })
-    })
-    return () => {
-      current = false
-    }
-  }, [code, navigate])
+    if (!game?.me.id) return
+    const next = !game.me.surveyDone
+      ? 'about-you'
+      : { open: 'players', playing: 'game', finished: 'result' }[game.session.status]
+    navigate(`/s/${code}/${next}`, { replace: true })
+  }, [game, code, navigate])
 
-  if (!game) return null
+  if (error) {
+    return (
+      <>
+        <Splash />
+        <Modal title="link not found">
+          <p role="alert" className="text-small font-light">
+            {error.message}
+          </p>
+        </Modal>
+      </>
+    )
+  }
+  if (!game || game.me.id) return null
   return (
     <>
       <Splash />
@@ -44,14 +50,15 @@ export function Join() {
             {FINISHED}
           </p>
         ) : (
-          <JoinForm code={code} onJoined={() => navigate(`/s/${code}/about-you`)} />
+          <JoinForm code={code} />
         )}
       </Modal>
     </>
   )
 }
 
-function JoinForm({ code, onJoined }: { code: string; onJoined: () => void }) {
+function JoinForm({ code }: { code: string }) {
+  const refetch = useRefetchGame(code)
   const [name, setName] = useState('')
   const [error, setError] = useState<string>()
   const [saving, setSaving] = useState(false)
@@ -62,10 +69,10 @@ function JoinForm({ code, onJoined }: { code: string; onJoined: () => void }) {
     setError(undefined)
     try {
       await joinSession(code, name)
-      onJoined()
+      // Now a member: the join screen routes on to the survey.
+      await refetch()
     } catch (e) {
-      if (!(e instanceof JoinError)) throw e
-      setError(e.message)
+      setError(e instanceof GameError ? e.message : 'Something went wrong. Please try again.')
     } finally {
       setSaving(false)
     }

@@ -1,5 +1,5 @@
-import { config } from '../config'
-import { pairRound, type PairingPlayer, type Round } from './pairing'
+import { config } from '../config.ts'
+import { pairRound, type PairingPlayer, type Round } from './pairing.ts'
 
 /** Session minutes ÷ minutes per round, rounded down (120 ÷ 17 = 7). */
 export function roundCount(minutes: number): number {

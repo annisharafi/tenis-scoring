@@ -4,43 +4,41 @@ import { AppShell } from '../components/AppShell'
 import { Button } from '../components/Button'
 import { PageHeader } from '../components/PageHeader'
 import { config } from '../config'
-import { finishSession, getGame, saveScore, type GameView, type MatchRecord, type RoundRecord } from '../data/game'
+import { finishSession, GameError, type GameView, type MatchRecord, type RoundRecord } from '../data/game'
+import { useGame, useRefetchGame, useSaveScore } from '../data/useGame'
 import { expectedScore } from '../logic/rating'
+import { scoreError } from '../logic/session'
 
 const { gamesPerMatch } = config.schedule
+const AUTO_SAVE_MS = 700
 
 /** 5.0 Game played: every round's pairings, score entry and the way into live counting. */
 export function GamePlayed() {
   const { code = '' } = useParams()
   const navigate = useNavigate()
-  const [game, setGame] = useState<GameView>()
+  const { data: game } = useGame(code)
+  const refetch = useRefetchGame(code)
+  const save = useSaveScore(code)
   const activeRef = useRef<HTMLElement>(null)
 
+  // Not joined, still in the lobby, or finished by the host: the join link routes them.
+  const away = game && (!game.me.id || game.session.status !== 'playing')
   useEffect(() => {
-    let current = true
-    getGame(code).then((g) => {
-      if (!current) return
-      // Not joined yet, or still in the lobby: the join link routes them.
-      if (!g.me.id || g.session.status === 'open') navigate(`/s/${code}`, { replace: true })
-      else setGame(g)
-    })
-    return () => {
-      current = false
-    }
-  }, [code, navigate])
+    if (away) navigate(`/s/${code}`, { replace: true })
+  }, [away, code, navigate])
 
-  // Open at the current round.
-  const hasGame = Boolean(game)
+  // Open at the current round, and follow it as rounds finish.
+  const activeRound = game?.rounds.find((r) => r.state === 'locked')?.number
   useEffect(() => {
-    if (hasGame) activeRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [hasGame])
+    activeRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [activeRound])
 
-  if (!game) return null
+  if (!game || away) return null
 
   async function finish() {
     if (!window.confirm('Finish the session for everyone?')) return
     await finishSession(code)
-    navigate(`/s/${code}/result`)
+    await refetch()
   }
 
   return (
@@ -56,7 +54,7 @@ export function GamePlayed() {
             ref={round.state === 'locked' ? activeRef : undefined}
             round={round}
             game={game}
-            onSave={async (matchId, a, b) => setGame(await saveScore(code, matchId, a, b))}
+            onSave={save}
           />
         ))}
         {game.me.isHost ? (
@@ -126,6 +124,16 @@ function CourtRow({
   const [a, setA] = useState(match.gamesA?.toString() ?? '')
   const [b, setB] = useState(match.gamesB?.toString() ?? '')
   const [saving, setSaving] = useState(false)
+  const [refused, setRefused] = useState<string>()
+
+  // A newly saved score (from this phone, another phone, or a refusal rolling it back) replaces the inputs.
+  const saved = `${match.gamesA}-${match.gamesB}`
+  const [shown, setShown] = useState(saved)
+  if (shown !== saved) {
+    setShown(saved)
+    setA(match.gamesA?.toString() ?? '')
+    setB(match.gamesB?.toString() ?? '')
+  }
 
   const active = round.state === 'locked'
   const onCourt = game.me.id !== null && [...match.teamA, ...match.teamB].includes(game.me.id)
@@ -135,21 +143,31 @@ function CourtRow({
 
   const gamesA = Number(a)
   const gamesB = Number(b)
-  const tooMany = a !== '' && b !== '' && gamesA + gamesB > gamesPerMatch
-  const valid = a !== '' && b !== '' && !tooMany && gamesA + gamesB > 0
+  const filled = a !== '' && b !== ''
+  const invalid = filled ? scoreError(gamesA, gamesB) : null
   const changed = gamesA !== match.gamesA || gamesB !== match.gamesB
+  const message = invalid ?? refused
 
   async function save() {
-    if (!valid || !changed || saving) return
+    if (!filled || invalid || !changed || saving) return
     setSaving(true)
+    setRefused(undefined)
     try {
       await onSave(match.id, gamesA, gamesB)
+    } catch (e) {
+      setRefused(e instanceof GameError ? e.message : 'Could not save the score. Please try again.')
     } finally {
       setSaving(false)
     }
   }
 
-  // Save once focus leaves both score fields (or on Enter).
+  // A complete, valid score saves itself once typing pauses; leaving the fields or Enter saves now.
+  useEffect(() => {
+    if (!filled || invalid || !changed) return
+    const timer = setTimeout(save, AUTO_SAVE_MS)
+    return () => clearTimeout(timer)
+  })
+
   function onBlur(event: FocusEvent<HTMLFormElement>) {
     const next = event.relatedTarget
     if (!(next instanceof HTMLInputElement && event.currentTarget.contains(next))) save()
@@ -165,13 +183,13 @@ function CourtRow({
       {showCourt && <h3 className="text-small font-light opacity-50">Court {match.court}</h3>}
       <div className="flex items-end gap-2">
         <TeamScore name={teamName(match.teamA)} info={<RatingInfo team="a" match={match} game={game} />}>
-          <ScoreInput label={`${teamName(match.teamA)} games`} value={a} onChange={setA} disabled={!canScore} />
+          <ScoreInput label={`${teamName(match.teamA)} games`} value={a} onChange={setA} disabled={!canScore || saving} />
         </TeamScore>
         <span aria-hidden className="flex h-10 w-[5px] items-center text-small font-light">
           -
         </span>
         <TeamScore name={teamName(match.teamB)} info={<RatingInfo team="b" match={match} game={game} />}>
-          <ScoreInput label={`${teamName(match.teamB)} games`} value={b} onChange={setB} disabled={!canScore} />
+          <ScoreInput label={`${teamName(match.teamB)} games`} value={b} onChange={setB} disabled={!canScore || saving} />
         </TeamScore>
         {canCountLive ? (
           <Link
@@ -191,7 +209,11 @@ function CourtRow({
         {/* Hidden submit so Enter saves from either field. */}
         <button type="submit" hidden />
       </div>
-      {tooMany && <p className="text-small font-light text-accent">A match has {gamesPerMatch} games in total.</p>}
+      {message && (
+        <p role="alert" className="text-small font-light text-accent">
+          {message}
+        </p>
+      )}
     </form>
   )
 }
@@ -235,38 +257,38 @@ function ScoreInput({
 }
 
 /**
- * Small grey rating details under a team name, by `ratingVisibility`:
- * test shows ratings, survey points, team average, win chance and the change after a match;
- * host shows ratings and the court's team gap to the host only.
+ * Small grey rating details under a team name, when the server shares ratings with this player
+ * (see `ratingVisibility`): in test mode ratings with survey points, team average, win chance and
+ * the change after a match; in host mode ratings and the court's team gap.
  */
 function RatingInfo({ team, match, game }: { team: 'a' | 'b'; match: MatchRecord; game: GameView }) {
-  const level = config.ratingVisibility as 'hidden' | 'host' | 'test'
-  if (level === 'hidden' || (level === 'host' && !game.me.isHost)) return null
+  const ratings = game.ratings
+  if (!ratings) return null
+  const test = config.ratingVisibility === 'test'
 
-  const change = game.ratingChanges.get(match.id)
-  const ratingOf = (id: string) => change?.before.get(id) ?? game.players.find((p) => p.id === id)!.rating
+  const change = ratings.changes.get(match.id)
+  const ratingOf = (id: string) => change?.before.get(id) ?? ratings.players.get(id)?.rating ?? config.rating.base
   const avg = (ids: readonly string[]) => ids.reduce((s, id) => s + ratingOf(id), 0) / ids.length
   const [mine, theirs] = team === 'a' ? [match.teamA, match.teamB] : [match.teamB, match.teamA]
 
-  const ratings = mine
+  const perPlayer = mine
     .map((id) => {
-      const points = game.players.find((p) => p.id === id)!.surveyPoints
-      return level === 'test' ? `${ratingOf(id)} (${points})` : `${ratingOf(id)}`
+      const points = ratings.players.get(id)?.surveyPoints
+      return test && points != null ? `${Math.round(ratingOf(id))} (${points})` : `${Math.round(ratingOf(id))}`
     })
     .join(' • ')
   const delta = change?.deltas.get(mine[0])
-  const details =
-    level === 'test'
-      ? [
-          `avg ${Math.round(avg(mine))}`,
-          `${Math.round(expectedScore(avg(mine), avg(theirs)) * 100)}%`,
-          ...(delta === undefined ? [] : [`${delta >= 0 ? '+' : ''}${delta}`]),
-        ]
-      : [`gap ${Math.round(Math.abs(avg(mine) - avg(theirs)))}`]
+  const details = test
+    ? [
+        `avg ${Math.round(avg(mine))}`,
+        `${Math.round(expectedScore(avg(mine), avg(theirs)) * 100)}%`,
+        ...(delta === undefined ? [] : [`${delta >= 0 ? '+' : ''}${delta}`]),
+      ]
+    : [`gap ${Math.round(Math.abs(avg(mine) - avg(theirs)))}`]
 
   return (
     <p className="truncate text-tiny font-light opacity-50">
-      {ratings}
+      {perPlayer}
       <br />
       {details.join(' · ')}
     </p>

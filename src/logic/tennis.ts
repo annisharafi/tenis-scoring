@@ -1,4 +1,4 @@
-import { config } from '../config'
+import { config } from '../config.ts'
 
 export type Side = 'a' | 'b'
 export type GameSystem = 'sudden' | 'advantage'

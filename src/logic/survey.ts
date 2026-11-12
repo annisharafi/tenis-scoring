@@ -1,4 +1,4 @@
-import { config } from '../config'
+import { config } from '../config.ts'
 
 type SurveyConfig = typeof config.survey
 

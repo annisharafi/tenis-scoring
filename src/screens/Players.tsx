@@ -3,38 +3,39 @@ import { useNavigate, useParams } from 'react-router'
 import { AppShell } from '../components/AppShell'
 import { Button } from '../components/Button'
 import { PageHeader } from '../components/PageHeader'
-import { getGame, startGame, type GameView } from '../data/game'
+import { GameError, startGame } from '../data/game'
+import { useGame, useRefetchGame } from '../data/useGame'
+import { MIN_PLAYERS } from '../logic/session'
 
-const MIN_PLAYERS = 4 // one court of doubles
-
-/** 5.0 Game player: the lobby. Everyone who has joined, until the host starts the game. */
+/**
+ * 5.0 Game player: the lobby. Everyone who has joined, live, until the host starts the game;
+ * then every phone moves on to the game by itself.
+ */
 export function Players() {
   const { code = '' } = useParams()
   const navigate = useNavigate()
-  const [game, setGame] = useState<GameView>()
+  const { data: game } = useGame(code)
+  const refetch = useRefetchGame(code)
   const [starting, setStarting] = useState(false)
+  const [error, setError] = useState<string>()
 
+  // Not joined, or the game has started: the join link sends them where they belong.
   useEffect(() => {
-    let current = true
-    getGame(code).then((g) => {
-      if (!current) return
-      // Not joined, or already playing: the join link sends them where they belong.
-      if (!g.me.id || g.session.status !== 'open') navigate(`/s/${code}`, { replace: true })
-      else setGame(g)
-    })
-    return () => {
-      current = false
-    }
-  }, [code, navigate])
+    if (game && (!game.me.id || game.session.status !== 'open')) navigate(`/s/${code}`, { replace: true })
+  }, [game, code, navigate])
 
-  if (!game) return null
+  if (!game?.me.id || game.session.status !== 'open') return null
+  const me = game.me.id
   const enough = game.players.length >= MIN_PLAYERS
 
   async function start() {
     setStarting(true)
+    setError(undefined)
     try {
       await startGame(code)
-      navigate(`/s/${code}/game`)
+      await refetch()
+    } catch (e) {
+      setError(e instanceof GameError ? e.message : 'Something went wrong. Please try again.')
     } finally {
       setStarting(false)
     }
@@ -64,8 +65,8 @@ export function Players() {
               {game.players.map((player, i) => (
                 <tr
                   key={player.id}
-                  aria-current={player.id === game.me.id || undefined}
-                  className={`border-b-[0.5px] border-line font-medium [&>td]:py-2.5 [&>td+td]:pl-4 ${player.id === game.me.id ? 'bg-primary/10' : ''}`}
+                  aria-current={player.id === me || undefined}
+                  className={`border-b-[0.5px] border-line font-medium [&>td]:py-2.5 [&>td+td]:pl-4 ${player.id === me ? 'bg-primary/10' : ''}`}
                 >
                   <td className="pl-5 font-light opacity-50">{String(i + 1).padStart(2, '0')}.</td>
                   <td className="truncate">{player.name}</td>
@@ -79,6 +80,11 @@ export function Players() {
                 <Button onClick={start} disabled={!enough || starting}>
                   Start game
                 </Button>
+                {error && (
+                  <p role="alert" className="text-center text-small font-light text-accent">
+                    {error}
+                  </p>
+                )}
                 {!enough && (
                   <p className="text-center text-small font-light lowercase opacity-50">
                     At least {MIN_PLAYERS} players are needed to start
