@@ -27,6 +27,93 @@
   --spacing-gutter-l: 60px;
   --spacing-gutter-r: 20px;
   --container-app: 430px;
+
+  --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+/* Splash intro: plays once on load. Steep ease-out, so most of each move lands early. */
+@keyframes splash-photo {
+  from {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+}
+@keyframes splash-draw-down {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+}
+@keyframes splash-draw-across {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+}
+@keyframes splash-rise {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes splash-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes splash-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@layer components {
+  .splash-photo,
+  .splash-rule-v,
+  .splash-rule-h,
+  .splash-title,
+  .splash-copy,
+  .splash-action {
+    animation-duration: 0.9s;
+    animation-timing-function: var(--ease-out-expo);
+    animation-fill-mode: both;
+  }
+  .splash-photo {
+    animation-name: splash-photo;
+    animation-duration: 1.4s;
+  }
+  .splash-rule-v {
+    animation-name: splash-draw-down;
+    animation-delay: 0.2s;
+  }
+  .splash-title {
+    animation-name: splash-rise;
+    animation-delay: 0.35s;
+  }
+  .splash-rule-h {
+    animation-name: splash-draw-across;
+    animation-delay: 0.5s;
+  }
+  .splash-copy {
+    animation-name: splash-fade-up;
+    animation-delay: 0.55s;
+  }
+  .splash-action {
+    animation-name: splash-fade-up;
+    animation-delay: 0.7s;
+  }
+
+  /* No movement: everything simply fades in together. */
+  @media (prefers-reduced-motion: reduce) {
+    .splash-photo,
+    .splash-rule-v,
+    .splash-rule-h,
+    .splash-title,
+    .splash-copy,
+    .splash-action {
+      animation-name: splash-fade;
+      animation-duration: 0.3s;
+      animation-delay: 0s;
+    }
+  }
 }
 
 @layer base {
